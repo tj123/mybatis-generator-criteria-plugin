@@ -5,6 +5,7 @@ import org.mybatis.generator.api.IntrospectedTable;
 import org.mybatis.generator.api.PluginAdapter;
 import org.mybatis.generator.api.dom.java.*;
 import org.mybatis.generator.api.dom.xml.Attribute;
+import org.mybatis.generator.api.dom.xml.Document;
 import org.mybatis.generator.api.dom.xml.XmlElement;
 
 import java.util.Iterator;
@@ -16,22 +17,64 @@ import java.util.List;
  */
 public class CriteriaPlugin extends PluginAdapter {
 	
+	private static final String interfaceSearchString = "Mapper$";
+	private static final String interfaceReplaceString = "Dao";
+	
+	private static final String methodSearchString = "Example";
+	private static final String methodReplaceString = "Criteria";
+	
+	private static final String xmlSearchString = "Example";
+	private static final String xmlReplaceString = "Criteria";
+	
+	private static final String parameterSearchString = "example";
+	private static final String parameterReplaceString = "criteria";
+	
+	
 	public boolean validate(List<String> warnings) {
 		return true;
 	}
 	
-	@Override
-	public List<GeneratedJavaFile> contextGenerateAdditionalJavaFiles(IntrospectedTable introspectedTable) {
-		return null;
+	/**
+	 * 修改文件名称
+	 *
+	 * @param interfaze
+	 */
+	private void changeClientFileName(Interface interfaze) {
+		FullyQualifiedJavaType type = interfaze.getType();
+		String fullyQualifiedName = type.getFullyQualifiedName();
+		fullyQualifiedName = fullyQualifiedName.replaceAll(interfaceSearchString, interfaceReplaceString);
+		FullyQualifiedJavaType newType = new FullyQualifiedJavaType(fullyQualifiedName);
+		Class<? extends Interface> interfaceClass = interfaze.getClass();
+		try {
+			java.lang.reflect.Field typeField = interfaceClass.getDeclaredField("type");
+			typeField.setAccessible(true);
+			typeField.set(interfaze, newType);
+		} catch (NoSuchFieldException e) {
+			e.printStackTrace();
+		} catch (IllegalAccessException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	/**
-	 * 修改文件名称
-	 * @param interfaze
+	 * 修改 namespace
+	 * @param document
 	 */
-	private void changeFileName(Interface interfaze) {
-		System.out.println(interfaze.getType().getShortName());
-		FullyQualifiedJavaType type = interfaze.getType();
+	private void changeSqlMapNamespace(Document document) {
+		XmlElement rootElement = document.getRootElement();
+		Iterator<Attribute> it = rootElement.getAttributes().iterator();
+		String originalValue = null;
+		while (it.hasNext()) {
+			Attribute attribute = it.next();
+			if (attribute.getName().equals("namespace")) {
+				originalValue = attribute.getValue();
+				it.remove();
+				break;
+			}
+		}
+		if (originalValue != null) {
+			rootElement.addAttribute(new Attribute("namespace", originalValue.replaceAll(interfaceSearchString, interfaceReplaceString)));
+		}
 		
 	}
 	
@@ -39,17 +82,22 @@ public class CriteriaPlugin extends PluginAdapter {
 	 * 修改xml的id
 	 *
 	 * @param element
-	 * @param id
 	 */
-	private void changeElementId(XmlElement element, String id) {
+	private void changeElementId(XmlElement element) {
 		Iterator<Attribute> it = element.getAttributes().iterator();
+		String originalVale = null;
 		while (it.hasNext()) {
-			if (it.next().getName().equals("id")) {
+			Attribute attribute = it.next();
+			if (attribute.getName().equals("id")) {
+				originalVale = attribute.getValue();
 				it.remove();
 				break;
 			}
 		}
-		element.addAttribute(new Attribute("id", id));
+		if (originalVale != null) {
+			element.addAttribute(new Attribute("id", originalVale.replaceAll(xmlSearchString,xmlReplaceString)));
+		}
+		
 	}
 	
 	/**
@@ -72,17 +120,17 @@ public class CriteriaPlugin extends PluginAdapter {
 	 * 修改第 ｛count｝个参数
 	 *
 	 * @param method
-	 * @param name
 	 */
-	private void changeMethodParameterName(Method method, String name, int count) {
+	private void changeMethodParameterName(Method method, int count) {
 		List<Parameter> parameters = method.getParameters();
 		if (parameters == null || parameters.isEmpty())
 			return;
 		count -= 1;
 		Parameter parameter = parameters.get(count);
+		String newName = parameter.getName().replaceAll(parameterSearchString,parameterReplaceString);
 		if (parameter != null) {
 			parameters.remove(count);
-			parameters.add(count, changeParameterName(parameter, name));
+			parameters.add(count, changeParameterName(parameter, newName));
 		}
 	}
 	
@@ -90,106 +138,121 @@ public class CriteriaPlugin extends PluginAdapter {
 	 * 默认修改第一个
 	 *
 	 * @param method
-	 * @param name
 	 */
-	private void changeMethodParameterName(Method method, String name) {
-		changeMethodParameterName(method, name, 1);
+	private void changeMethodParameterName(Method method) {
+		changeMethodParameterName(method, 1);
 	}
 	
+	/**
+	 * 修改方法名称
+	 * @param method
+	 */
+	private void changeMethodName(Method method){
+		method.setName(method.getName().replaceAll(methodSearchString,methodReplaceString));
+	}
 	
 	@Override
 	public boolean clientCountByExampleMethodGenerated(Method method, Interface interfaze, IntrospectedTable introspectedTable) {
-		method.setName("countByCriteria");
-		changeMethodParameterName(method, "criteria");
+		changeMethodName(method);
+		changeMethodParameterName(method);
 		return true;
 	}
 	
 	@Override
 	public boolean clientDeleteByExampleMethodGenerated(Method method, Interface interfaze, IntrospectedTable introspectedTable) {
-		method.setName("deleteByCriteria");
-		changeMethodParameterName(method, "criteria");
+		changeMethodName(method);
+		changeMethodParameterName(method);
 		return true;
 	}
 	
 	@Override
 	public boolean clientSelectByExampleWithBLOBsMethodGenerated(Method method, Interface interfaze, IntrospectedTable introspectedTable) {
-		method.setName("selectByCriteria");
-		changeMethodParameterName(method, "criteria");
+		changeMethodName(method);
+		changeMethodParameterName(method);
 		return true;
 	}
 	
 	@Override
 	public boolean clientSelectByExampleWithoutBLOBsMethodGenerated(Method method, Interface interfaze, IntrospectedTable introspectedTable) {
-		method.setName("selectByCriteria");
-		changeMethodParameterName(method, "criteria");
+		changeMethodName(method);
+		changeMethodParameterName(method);
 		return true;
 	}
 	
 	
 	@Override
 	public boolean clientUpdateByExampleWithBLOBsMethodGenerated(Method method, Interface interfaze, IntrospectedTable introspectedTable) {
-		method.setName("updateByCriteria");
-		changeMethodParameterName(method, "criteria", 2);
+		changeMethodName(method);
+		changeMethodParameterName(method, 2);
 		return true;
 	}
 	
-
+	
 	@Override
 	public boolean clientUpdateByExampleWithoutBLOBsMethodGenerated(Method method, Interface interfaze, IntrospectedTable introspectedTable) {
-		method.setName("updateByCriteria");
-		changeMethodParameterName(method, "criteria", 2);
+		changeMethodName(method);
+		changeMethodParameterName(method, 2);
 		return true;
 	}
 	
 	@Override
 	public boolean clientUpdateByExampleSelectiveMethodGenerated(Method method, Interface interfaze, IntrospectedTable introspectedTable) {
-		method.setName("updateByCriteriaSelective");
-		changeMethodParameterName(method, "criteria", 2);
+		changeMethodName(method);
+		changeMethodParameterName(method, 2);
 		return true;
 	}
 	
 	@Override
 	public boolean clientGenerated(Interface interfaze, TopLevelClass topLevelClass, IntrospectedTable introspectedTable) {
-		changeFileName(interfaze);
+		changeClientFileName(interfaze);
 		return true;
 	}
 	
 	//mapper 文件
 	@Override
 	public boolean sqlMapCountByExampleElementGenerated(XmlElement element, IntrospectedTable introspectedTable) {
-		changeElementId(element, "countByCriteria");
+		changeElementId(element);
 		return true;
 	}
 	
 	@Override
 	public boolean sqlMapDeleteByExampleElementGenerated(XmlElement element, IntrospectedTable introspectedTable) {
-		changeElementId(element, "deleteByCriteria");
+		changeElementId(element);
 		return true;
 	}
 	
 	@Override
 	public boolean sqlMapSelectByExampleWithoutBLOBsElementGenerated(XmlElement element, IntrospectedTable introspectedTable) {
-		changeElementId(element, "selectByCriteria");
+		changeElementId(element);
 		return true;
 	}
 	
 	@Override
 	public boolean sqlMapUpdateByExampleSelectiveElementGenerated(XmlElement element, IntrospectedTable introspectedTable) {
-		changeElementId(element, "updateByCriteriaSelective");
+		changeElementId(element);
 		return true;
 	}
 	
 	@Override
 	public boolean sqlMapUpdateByExampleWithBLOBsElementGenerated(XmlElement element, IntrospectedTable introspectedTable) {
-		changeElementId(element, "updateByCriteria");
+		changeElementId(element);
 		return true;
 	}
 	
 	@Override
 	public boolean sqlMapUpdateByExampleWithoutBLOBsElementGenerated(XmlElement element, IntrospectedTable introspectedTable) {
-		changeElementId(element, "updateByCriteria");
+		changeElementId(element);
 		return true;
 	}
 	
+	@Override
+	public boolean sqlMapResultMapWithoutBLOBsElementGenerated(XmlElement element, IntrospectedTable introspectedTable) {
+		return true;
+	}
 	
+	@Override
+	public boolean sqlMapDocumentGenerated(Document document, IntrospectedTable introspectedTable) {
+		changeSqlMapNamespace(document);
+		return true;
+	}
 }
